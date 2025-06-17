@@ -1,10 +1,20 @@
-## Ignore everything except except .gitignore itself and main scripts ##
+## Ignore everything except .gitignore itself and main scripts ##
 
-# Ignoruj wszystko
-*
+# Ignore every catalog
+.vs/*
+Builds/*
+Library/*
+Logs/*
+obj/*
+Packages/*
+ProjectSettings/*
+Temp/*
+UserSettings/*
+Assets/*
 
-# Wyklucz (nie ignoruj) plik .gitignore
-!.gitignore
+# Do not ignore Assets/Scripts
+!Assets/Scripts
 
-# Wyklucz (nie ignoruj) katalog Assets i jego zawartoœæ
-!Assets/
+# Ignore all files but .cs
+*.*
+!*.cs
