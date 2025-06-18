@@ -10,6 +10,7 @@ public class CollectCactusNeedle : MonoBehaviour
     private PlayerStats playerStats;
     private PlayerMovement playerMovement;
     private AnimationManager animationManager;
+    private AudioManager audioManager;
     private GameObject currentCactus;
 
     private bool isInterracting;
@@ -29,6 +30,7 @@ public class CollectCactusNeedle : MonoBehaviour
         playerStats = GetComponent<PlayerStats>();
         playerMovement = GetComponent<PlayerMovement>();
         animationManager = GetComponent<AnimationManager>();
+        audioManager = GetComponent<AudioManager>();
 
         isInterracting = false;
         isCloseToCactus = false;
@@ -77,6 +79,9 @@ public class CollectCactusNeedle : MonoBehaviour
 
         // Czekaj 3 sekundy
         yield return new WaitForSeconds(3f);
+
+        // Odtworz dzwiek dodania przedmiotu
+        audioManager.PlayCollectItem(transform.position);
 
         // Dodaj ig³ê do statystyk
         playerStats.AddCactusNeedle();

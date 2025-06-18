@@ -23,6 +23,7 @@ public class PlayerMovement : MonoBehaviour
     private CharacterController characterController;
     private InputSystem_Actions inputActions;
     private AnimationManager animationManager;
+    private AudioManager audioManager;
     private PlayerStats playerStats;
     
     private Vector3 moveDirection;
@@ -53,6 +54,7 @@ public class PlayerMovement : MonoBehaviour
     {
         characterController = GetComponent<CharacterController>();
         animationManager = GetComponent<AnimationManager>();
+        audioManager = GetComponent<AudioManager>();
         playerStats = GetComponent<PlayerStats>();
         // rabbitMQManager = FindObjectOfType<RabbitMQManager(); // Uncomment for RabbitMQ
 
@@ -131,6 +133,7 @@ public class PlayerMovement : MonoBehaviour
             verticalVelocity = isSprinting ? jumpForce * jumpForceSprintMultiplier : jumpForce;
             isJumping = true;
             isJumpRequested = false;
+            audioManager.PlayJumpUp(transform.position);
         }
 
         // Grawitacja
@@ -161,6 +164,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (hit.gameObject.CompareTag("Sting"))
         {
+            audioManager.PlayGetHit(transform.position);
             Vector3 cactusPosition = hit.gameObject.transform.position;
 
             TriggerMovementDisableForTime(1.0f);

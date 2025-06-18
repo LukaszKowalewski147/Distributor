@@ -10,6 +10,7 @@ public class CollectLemon : MonoBehaviour
     private PlayerStats playerStats;
     private PlayerMovement playerMovement;
     private AnimationManager animationManager;
+    private AudioManager audioManager;
     private GameObject currentLemonTree;
 
     private bool isInterracting;
@@ -29,6 +30,7 @@ public class CollectLemon : MonoBehaviour
         playerStats = GetComponent<PlayerStats>();
         playerMovement = GetComponent<PlayerMovement>();
         animationManager = GetComponent<AnimationManager>();
+        audioManager = GetComponent<AudioManager>();
 
         isInterracting = false;
         isCloseToLemons = false;
@@ -75,12 +77,17 @@ public class CollectLemon : MonoBehaviour
         // Aktualizacja animacji
         animationManager.Collect();
 
+        // Odtworz szelest lisci
+        audioManager.PlayLeavesRustling(treePosition);
+
         // Czekaj 3 sekundy
         yield return new WaitForSeconds(3f);
 
+        // Odtworz dzwiek dodania przedmiotu
+        audioManager.PlayCollectItem(transform.position);
+
         // Dodaj cytrynê do statystyk
         playerStats.AddLemon();
-
 
         if (isCloseToLemons)
         {
