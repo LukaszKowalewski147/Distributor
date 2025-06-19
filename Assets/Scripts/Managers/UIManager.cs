@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
@@ -7,6 +8,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI hpCounter;
     [SerializeField] private TextMeshProUGUI lemonCounter;
     [SerializeField] private TextMeshProUGUI cactusNeedlesCounter;
+    [SerializeField] private Image interactionEKey;
 
     private InputSystem_Actions inputActions;
 
@@ -21,6 +23,7 @@ public class UIManager : MonoBehaviour
     private void Start()
     {
         isMenuRequested = false;
+        SetInteractionEKeyActive(false);
     }
 
     void OnEnable()
@@ -38,7 +41,7 @@ public class UIManager : MonoBehaviour
         if (isMenuRequested)
         {
             isMenuRequested = false;
-            OpenClosePauseMenu(!pauseMenu.activeSelf); // zamknij jesli otwarte i odwrotnie
+            SetPauseMenuActive(!pauseMenu.activeSelf); // zamknij jesli otwarte i odwrotnie
         }
     }
 
@@ -57,10 +60,15 @@ public class UIManager : MonoBehaviour
         cactusNeedlesCounter.text = cactusNeedlesAmount.ToString();
     }
 
-    public void OpenClosePauseMenu(bool active)
+    public void SetPauseMenuActive(bool isActive)
     {
-        pauseMenu.SetActive(active);
-        Cursor.visible = active;
+        pauseMenu.SetActive(isActive);
+        Cursor.visible = isActive;
+    }
+
+    public void SetInteractionEKeyActive(bool isActive)
+    {
+        interactionEKey.gameObject.SetActive(isActive);
     }
 
     void OnDestroy()

@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 public class CollectLemon : MonoBehaviour
 {
-    [SerializeField] private Image actionE;
+    [SerializeField] private UIManager uiManager;
 
     private InputSystem_Actions inputActions;
     private PlayerStats playerStats;
@@ -53,15 +53,15 @@ public class CollectLemon : MonoBehaviour
     {
         if (isCloseToLemons && isInterracting && !isPerformingCollect)
         {
-           PerformCollectLemon();
+            isInterracting = false;
+            PerformCollectLemon();
         }
     }
 
     private void PerformCollectLemon()
     {
-        isInterracting = false;
         isPerformingCollect = true; // Blokuj kolejne akcje zbierania
-        actionE.gameObject.SetActive(false);
+        uiManager.SetInteractionEKeyActive(false);
         StartCoroutine(CollectLemonCoroutine());
     }
 
@@ -91,7 +91,7 @@ public class CollectLemon : MonoBehaviour
 
         if (isCloseToLemons)
         {
-            actionE.gameObject.SetActive(true);
+            uiManager.SetInteractionEKeyActive(true);
         }
 
         // Odblokuj ruch postaci
@@ -104,7 +104,7 @@ public class CollectLemon : MonoBehaviour
     {
         if (other.CompareTag("Lemon"))
         {
-            actionE.gameObject.SetActive(true);
+            uiManager.SetInteractionEKeyActive(true);
             currentLemonTree = other.gameObject;
             isCloseToLemons = true;
         }
@@ -114,7 +114,7 @@ public class CollectLemon : MonoBehaviour
     {
         if (other.CompareTag("Lemon"))
         {
-            actionE.gameObject.SetActive(false);
+            uiManager.SetInteractionEKeyActive(false);
             isCloseToLemons = false;
             currentLemonTree = null;
         }

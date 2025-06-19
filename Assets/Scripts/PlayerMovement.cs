@@ -81,7 +81,6 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        Debug.Log("current speed: " + currentSpeed);
         // Blokuj ruch, poczas interakcji
         if (movementDisabled)
         {

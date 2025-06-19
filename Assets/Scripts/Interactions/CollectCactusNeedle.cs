@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 public class CollectCactusNeedle : MonoBehaviour
 {
-    [SerializeField] private Image actionE;
+    [SerializeField] private UIManager uiManager;
 
     private InputSystem_Actions inputActions;
     private PlayerStats playerStats;
@@ -53,15 +53,15 @@ public class CollectCactusNeedle : MonoBehaviour
     {
         if (isCloseToCactus && isInterracting && !isPerformingCollect)
         {
-           PerformCollectCactusNeedle();
+            isInterracting = false;
+            PerformCollectCactusNeedle();
         }
     }
 
     private void PerformCollectCactusNeedle()
     {
-        isInterracting = false;
         isPerformingCollect = true; // Blokuj kolejne akcje zbierania
-        actionE.gameObject.SetActive(false);
+        uiManager.SetInteractionEKeyActive(false);
         StartCoroutine(CollectCactusNeedleCoroutine());
     }
 
@@ -88,7 +88,7 @@ public class CollectCactusNeedle : MonoBehaviour
 
         if (isCloseToCactus)
         {
-            actionE.gameObject.SetActive(true);
+            uiManager.SetInteractionEKeyActive(true);
         }
 
         // Odblokuj ruch postaci
@@ -101,7 +101,7 @@ public class CollectCactusNeedle : MonoBehaviour
     {
         if (other.CompareTag("Cactus"))
         {
-            actionE.gameObject.SetActive(true);
+            uiManager.SetInteractionEKeyActive(true);
             currentCactus = other.transform.GetChild(0).gameObject;
             isCloseToCactus = true;
         }
@@ -111,7 +111,7 @@ public class CollectCactusNeedle : MonoBehaviour
     {
         if (other.CompareTag("Cactus"))
         {
-            actionE.gameObject.SetActive(false);
+            uiManager.SetInteractionEKeyActive(false);
             isCloseToCactus = false;
             currentCactus = null;
         }
