@@ -4,7 +4,6 @@ public class PlayerStats : MonoBehaviour
 {
     [SerializeField] private UIManager uiManager;
 
-    private string name;
     private int hp;
     private int lemonsOwned;
     private int cactusNeedlesOwned;
@@ -12,16 +11,11 @@ public class PlayerStats : MonoBehaviour
     private void Start()
     {
         hp = 100;
-        lemonsOwned = 0;       // TODO: change to 0
-        cactusNeedlesOwned = 0; // TODO: change to 0
+        lemonsOwned = 0;
+        cactusNeedlesOwned = 0;
         UpdateHpUI();
         UpdateLemonUI();
         UpdateCactusNeedleUI();
-    }
-
-    public void SetName(string name)
-    {
-        this.name = name;
     }
 
     public int GetHp()

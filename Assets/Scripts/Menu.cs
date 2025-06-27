@@ -10,7 +10,7 @@ public class Menu : MonoBehaviour
 
     public void RunMultiPlayer()
     {
-
+        SceneManager.LoadScene(1);
     }
 
     public void OpenMainMenu()
