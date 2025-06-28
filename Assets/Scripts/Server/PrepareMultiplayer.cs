@@ -10,10 +10,10 @@ public class PrepareMultiplayer : MonoBehaviour
     {
         PlayerData.playerID = GeneratePlayerID();
         PlayerData.playerName = playerNameInput.text;
+        PlayerData.zone = "forest";
 
         Debug.Log("PREPARE MULTIPLATER DATA");
-        Debug.Log("PlayerData __ID: " + PlayerData.playerID + "\nPlayerData name: " + PlayerData.playerName);
-        Debug.Log("PREPARE MULTIPLATER DATA END");
+        Debug.Log("ID: [" + PlayerData.playerID + "] name: [" + PlayerData.playerName + "] zone: [" + PlayerData.zone + "]");
     }
 
     private string GeneratePlayerID()

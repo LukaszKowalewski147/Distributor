@@ -157,6 +157,15 @@ public class PlayerMovement : MonoBehaviour
 
         // Aktualizacja animacji
         animationManager.SetBaseMovement(inputDirection.magnitude, isSprinting, isJumping);
+
+        // Aktualizacja ruchu na serwerze
+        UpdateMovementServer();
+    }
+
+    private void UpdateMovementServer()
+    {
+        PlayerData.position = transform.position;
+        PlayerData.rotationY = transform.eulerAngles.y;
     }
 
     private void OnControllerColliderHit(ControllerColliderHit hit)

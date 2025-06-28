@@ -40,6 +40,7 @@ public class Shopping : MonoBehaviour
 
             // TODO: interaction with zabka
             Debug.Log("Shopping: interaction with zabka");
+            ServerManager.Instance.SendInteraction("request_zabka");
         }
     }
 

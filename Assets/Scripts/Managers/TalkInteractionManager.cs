@@ -62,11 +62,13 @@ public class TalkInteractionManager : MonoBehaviour
 
     private void GoToForest()
     {
+        ServerManager.Instance.SendPlayerTransfer("forest");
         SceneManager.LoadScene(1);
     }
 
     private void GoToDesert()
     {
+        ServerManager.Instance.SendPlayerTransfer("desert");
         SceneManager.LoadScene(2);
     }
 }

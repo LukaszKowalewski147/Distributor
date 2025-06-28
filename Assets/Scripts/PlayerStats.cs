@@ -13,9 +13,9 @@ public class PlayerStats : MonoBehaviour
         hp = 100;
         lemonsOwned = 0;
         cactusNeedlesOwned = 0;
-        UpdateHpUI();
-        UpdateLemonUI();
-        UpdateCactusNeedleUI();
+        UpdateHp();
+        UpdateLemons();
+        UpdateCactusNeedles();
     }
 
     public int GetHp()
@@ -36,51 +36,84 @@ public class PlayerStats : MonoBehaviour
     public void AddLemon()
     {
         lemonsOwned++;
-        UpdateLemonUI();
+        UpdateLemons();
     }
 
     public void AddCactusNeedle()
     {
         cactusNeedlesOwned++;
-        UpdateCactusNeedleUI();
+        UpdateCactusNeedles();
     }
 
     public void TakeAwayLemons(int amount)
     {
         lemonsOwned -= amount;
-        UpdateLemonUI();
+        UpdateLemons();
     }
 
     public void TakeAwayCactusNeedles(int amount)
     {
         cactusNeedlesOwned -= amount;
-        UpdateCactusNeedleUI();
+        UpdateCactusNeedles();
     }
 
     public void IncreaseHpBy(int amount)
     {
         hp += amount;
-        UpdateHpUI();
+        UpdateHp();
     }
 
     public void DecreaseHpBy(int amount)
     {
         hp -= amount;
-        UpdateHpUI();
+        UpdateHp();
     }
 
-    public void UpdateHpUI()
+    private void UpdateHp()
+    {
+        UpdateHpUI();
+        UpdateHpServer();
+    }
+
+    private void UpdateLemons()
+    {
+        UpdateLemonUI();
+        UpdateLemonServer();
+    }
+
+    private void UpdateCactusNeedles()
+    {
+        UpdateCactusNeedleUI();
+        UpdateCactusNeedleServer();
+    }
+
+    private void UpdateHpUI()
     {
         uiManager.UpdateHpCounter(hp);
     }
 
-    public void UpdateLemonUI()
+    private void UpdateLemonUI()
     {
         uiManager.UpdateLemonCounter(lemonsOwned);
     }
 
-    public void UpdateCactusNeedleUI()
+    private void UpdateCactusNeedleUI()
     {
         uiManager.UpdateCactusNeedlesCounter(cactusNeedlesOwned);
+    }
+
+    private void UpdateHpServer()
+    {
+        PlayerData.hp = hp;
+    }
+
+    private void UpdateLemonServer()
+    {
+        PlayerData.lemonsCount = lemonsOwned;
+    }
+
+    private void UpdateCactusNeedleServer()
+    {
+        PlayerData.cactusNeedlesCount = cactusNeedlesOwned;
     }
 }

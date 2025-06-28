@@ -4,12 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using UnityEngine;
 
 public class ServerManager : MonoBehaviour
 {
-    private PlayerStats playerStats;
+    public static ServerManager Instance { get; private set; }
+
     private IConnection connection;
     private IModel channel;
     private string playerId;
@@ -29,29 +31,32 @@ public class ServerManager : MonoBehaviour
 
     // Queues and routing keys
     private string movementQueue;
-    private string interactionsQueue;
     private string animationsQueue;
+    private string interactionsQueue;
     private string transferQueue;
 
     void Awake()
     {
-        playerStats = GetComponent<PlayerStats>();
-        if (playerStats == null)
+        #region Singleton handling
+        if (Instance != null && Instance != this)
         {
-            Debug.LogError("PlayerStats component not found on Player GameObject!");
-            enabled = false;
+            Destroy(gameObject);
             return;
         }
+        
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+        #endregion
 
-        // Initialize player ID and zone
+        // Initialize player ID, name and zone
         playerId = PlayerData.playerID;
         playerName = PlayerData.playerName;
         zone = PlayerData.zone;
 
         // Initialize queue names
         movementQueue = $"movement.{playerId}";
-        interactionsQueue = $"interactions.{playerId}";
         animationsQueue = $"animations.{playerId}";
+        interactionsQueue = $"interactions.{playerId}";
         transferQueue = $"transfer.*.{zone}";
     }
 
@@ -82,11 +87,11 @@ public class ServerManager : MonoBehaviour
             channel.QueueDeclare(movementQueue, false, false, true, null);
             channel.QueueBind(movementQueue, EXCHANGE_M2C, movementQueue);
 
-            channel.QueueDeclare(interactionsQueue, false, false, true, null);
-            channel.QueueBind(interactionsQueue, EXCHANGE_I2C, interactionsQueue);
-
             channel.QueueDeclare(animationsQueue, false, false, true, null);
             channel.QueueBind(animationsQueue, EXCHANGE_A2C, animationsQueue);
+
+            channel.QueueDeclare(interactionsQueue, false, false, true, null);
+            channel.QueueBind(interactionsQueue, EXCHANGE_I2C, interactionsQueue);
 
             channel.QueueDeclare(transferQueue, false, false, true, null);
             channel.QueueBind(transferQueue, EXCHANGE_PT, transferQueue);
@@ -103,12 +108,15 @@ public class ServerManager : MonoBehaviour
     {
         var message = new { id = playerId };
         SendMessage(EXCHANGE_C2S, $"join.{zone}", message);
+        Debug.Log("SERVER - Sending a JOIN MESSAGE:\n" + message.ToString());
     }
 
     void SendLeaveMessage()
     {
+        Debug.Log("SendLeaveMessage");
         var message = new { id = playerId };
         SendMessage(EXCHANGE_C2S, $"leave.{zone}", message);
+        Debug.Log("SERVER - Sending a LEAVE MESSAGE:\n" + message.ToString());
     }
 
     void SendMessage(string exchange, string routingKey, object message)
@@ -140,21 +148,10 @@ public class ServerManager : MonoBehaviour
             posY = position.y,
             posZ = position.z,
             rotY = PlayerData.rotationY,
-            state = PlayerData.state,
             timestamp = Time.time
         };
         SendMessage(EXCHANGE_C2S, $"movement.{zone}", message);
-    }
-
-    public void SendInteraction(string interaction)
-    {
-        var message = new
-        {
-            playerId = playerId,
-            interaction,
-            timestamp = Time.time
-        };
-        SendMessage(EXCHANGE_C2S, $"interactions.{zone}", message);
+        //Debug.Log("SERVER - Sending a MOVEMENT UPDATE MESSAGE:\n" + message.ToString());
     }
 
     public void SendAnimation(string animation)
@@ -166,8 +163,21 @@ public class ServerManager : MonoBehaviour
             timestamp = Time.time
         };
         SendMessage(EXCHANGE_C2S, $"animations.{zone}", message);
+        //Debug.Log("SERVER - Sending a ANIMATION TRIGGER MESSAGE:\n" + message.ToString());
     }
-
+    
+    public void SendInteraction(string interaction)
+    {
+        var message = new
+        {
+            playerId = playerId,
+            interaction,
+            timestamp = Time.time
+        };
+        SendMessage(EXCHANGE_C2S, $"interactions.{zone}", message);
+        //Debug.Log("SERVER - Sending a INTERACTION TRIGGER MESSAGE:\n" + message.ToString());
+    }
+    
     public void SendPlayerTransfer(string targetZone)
     {
         var message = new
@@ -175,16 +185,17 @@ public class ServerManager : MonoBehaviour
             playerId = playerId,
             from = zone,
             to = targetZone,
-            stanZdrowia = PlayerData.hp,
-            cytryny = PlayerData.lemonsCount,
-            igly = PlayerData.cactusNeedlesCount,
             timestamp = Time.time
         };
         SendMessage(EXCHANGE_C2S, $"transfer.{zone}", message);
-        zone = targetZone; // Update local zone
+        Debug.Log("SERVER - Sending a PLAYER TRANSFER MESSAGE:\n" + message.ToString());
+
+        PlayerData.zone = targetZone; // Update local zone
+        zone = targetZone; 
+
         UpdateQueueBindings();
     }
-
+    
     void UpdateQueueBindings()
     {
         // Unbind and delete old transfer queue
@@ -196,7 +207,7 @@ public class ServerManager : MonoBehaviour
         channel.QueueDeclare(transferQueue, false, false, true, null);
         channel.QueueBind(transferQueue, EXCHANGE_PT, transferQueue);
     }
-
+    
     void StartConsuming()
     {
         isRunning = true;
@@ -222,13 +233,13 @@ public class ServerManager : MonoBehaviour
                     {
                         ProcessMovementMessage(message);
                     }
-                    else if (routingKey.StartsWith("interactions."))
-                    {
-                        ProcessInteractionMessage(message);
-                    }
                     else if (routingKey.StartsWith("animations."))
                     {
                         ProcessAnimationMessage(message);
+                    }
+                    else if (routingKey.StartsWith("interactions."))
+                    {
+                        ProcessInteractionMessage(message);
                     }
                     else if (routingKey.StartsWith("transfer."))
                     {
@@ -242,8 +253,8 @@ public class ServerManager : MonoBehaviour
             };
 
             channel.BasicConsume(movementQueue, true, consumer);
-            channel.BasicConsume(interactionsQueue, true, consumer);
             channel.BasicConsume(animationsQueue, true, consumer);
+            channel.BasicConsume(interactionsQueue, true, consumer);
             channel.BasicConsume(transferQueue, true, consumer);
 
             while (isRunning)
@@ -259,98 +270,138 @@ public class ServerManager : MonoBehaviour
 
     void ProcessMovementMessage(string message)
     {
+        //Debug.Log("SERVER - movement response message: " + message);
         var data = JsonSerializer.Deserialize<MovementMessage>(message);
-        if (data?.updates != null)
+        if (data?.Updates != null)
         {
-            foreach (var update in data.updates)
+            foreach (var update in data.Updates)
             {
-                if (update.id != playerId) // Update other players
+                if (update.Id != playerId) // Update other players
                 {
-                    // Assuming Variables.cs has a way to manage other players' states
-                    // You might need to implement a system to update other player GameObjects
-                    Debug.Log($"Received movement for {update.id}: Position={update.position}, State={update.state}");
+                    
+                }
+                else
+                {
+                    // My position for debugging
+                    //Debug.Log($"Me: X={update.Position.X}, Y={update.Position.Y}, Z={update.Position.Z}, rotY={update.RotationY}");
                 }
             }
         }
     }
 
-    void ProcessInteractionMessage(string message)
-    {
-        var data = JsonSerializer.Deserialize<InteractionMessage>(message);
-        Debug.Log($"Interaction from {data.playerId}: {data.interaction}");
-        // Handle interaction (e.g., update UI or trigger events)
-    }
-
     void ProcessAnimationMessage(string message)
     {
         var data = JsonSerializer.Deserialize<AnimationMessage>(message);
-        Debug.Log($"Animation from {data.playerId}: {data.animation}");
+        //Debug.Log($"Animation from {data.PlayerId}: animation: {data.Animation}");
         // Handle animation (e.g., play animation on other player)
     }
 
+    void ProcessInteractionMessage(string message)
+    {
+        var data = JsonSerializer.Deserialize<InteractionMessage>(message);
+        //Debug.Log($"Interaction from {data.PlayerId}: {data.Interaction}");
+        // Handle interaction (e.g., update UI or trigger events)
+    }
+    
     void ProcessTransferMessage(string message)
     {
         var data = JsonSerializer.Deserialize<TransferMessage>(message);
-        if (data.playerId == playerId)
+        if (data.PlayerId == playerId)
         {
-            //playerStats.health = data.stanZdrowia;
-            //playerStats.lemons = data.cytryny;
-            //playerStats.needles = data.igly;
-            zone = data.to;
+            zone = data.To;
             Debug.Log($"Player transferred to {zone}");
         }
     }
 
-    void OnDestroy()
-    {
-        SendLeaveMessage();
-        isRunning = false;
-        channel?.Close();
-        connection?.Close();
-    }
-
-    // Message classes for deserialization (adjust based on actual Variables.cs types)
+    #region JSON messages
     [Serializable]
     private class MovementMessage
     {
-        public List<PlayerUpdate> updates;
+        [JsonPropertyName("updates")]
+        public List<PlayerUpdate> Updates { get; set; }
     }
 
     [Serializable]
     private class PlayerUpdate
     {
-        public string id;
-        public Vector3 position;
-        public Vector3 rotation;
-        public string state;
-        public float timestamp;
+        [JsonPropertyName("id")]
+        public string Id { get; set; }
+
+        [JsonPropertyName("position")]
+        public Position Position { get; set; }
+
+        [JsonPropertyName("rotationY")]
+        public float RotationY { get; set; }
+
+        [JsonPropertyName("timestamp")]
+        public float Timestamp { get; set; }
     }
 
     [Serializable]
-    private class InteractionMessage
+    private class Position
     {
-        public string playerId;
-        public string interaction;
-        public float timestamp;
+        [JsonPropertyName("x")]
+        public float X { get; set; }
+
+        [JsonPropertyName("y")]
+        public float Y { get; set; }
+
+        [JsonPropertyName("z")]
+        public float Z { get; set; }
+
+        // Konwersja na Vector3
+        public static implicit operator Vector3(Position pos) => new Vector3(pos.X, pos.Y, pos.Z);
     }
 
     [Serializable]
     private class AnimationMessage
     {
-        public string playerId;
-        public string animation;
-        public float timestamp;
+        [JsonPropertyName("playerId")]
+        public string PlayerId { get; set; }
+
+        [JsonPropertyName("animation")]
+        public string Animation { get; set; }
+
+        [JsonPropertyName("timestamp")]
+        public float Timestamp { get; set; }
+    }
+
+    [Serializable]
+    private class InteractionMessage
+    {
+        [JsonPropertyName("playerId")]
+        public string PlayerId { get; set; }
+
+        [JsonPropertyName("interaction")]
+        public string Interaction { get; set; }
+
+        [JsonPropertyName("timestamp")]
+        public float Timestamp { get; set; }
     }
 
     [Serializable]
     private class TransferMessage
     {
-        public string playerId;
-        public string from;
-        public string to;
-        public float stanZdrowia;
-        public int cytryny;
-        public int igly;
-        public float timestamp;
+        [JsonPropertyName("playerId")]
+        public string PlayerId { get; set; }
+
+        [JsonPropertyName("from")]
+        public string From { get; set; }
+
+        [JsonPropertyName("to")]
+        public string To { get; set; }
+
+        [JsonPropertyName("timestamp")]
+        public float Timestamp { get; set; }
+    }
+    #endregion
+
+    private void OnApplicationQuit()
+    {
+        Debug.Log("OnAppQuit");
+        SendLeaveMessage();
+        isRunning = false;
+        channel?.Close();
+        connection?.Close();
     }
 }
