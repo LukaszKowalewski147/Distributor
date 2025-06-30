@@ -8,6 +8,7 @@ public class PrepareMultiplayer : MonoBehaviour
 
     public void PrepareMultiplayerData()
     {
+        PlayerData.multiplayer = true;
         PlayerData.playerID = GeneratePlayerID();
         PlayerData.playerName = playerNameInput.text;
         PlayerData.zone = "forest";

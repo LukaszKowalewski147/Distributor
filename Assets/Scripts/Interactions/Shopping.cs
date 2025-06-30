@@ -40,7 +40,9 @@ public class Shopping : MonoBehaviour
 
             // TODO: interaction with zabka
             Debug.Log("Shopping: interaction with zabka");
-            ServerManager.Instance.SendInteraction("request_zabka");
+            
+            if (PlayerData.multiplayer)
+                ServerManager.Instance.SendInteraction("request_zabka");
         }
     }
 

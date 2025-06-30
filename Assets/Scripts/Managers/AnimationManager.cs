@@ -71,6 +71,9 @@ public class AnimationManager : MonoBehaviour
 
     private void UpdateAnimationServer(Animation animation)
     {
+        if (!PlayerData.multiplayer)
+            return;
+
         if (lastAnimation != animation)
         {
             switch (animation)
@@ -96,5 +99,25 @@ public class AnimationManager : MonoBehaviour
             }
             lastAnimation = animation;
         }
+    }
+
+    public static Animation ConvertAnimationStringToEnum(string animation)
+    {
+        switch (animation)
+        {
+            case "idle":
+                return Animation.IDLE;
+            case "run":
+                return Animation.RUN;
+            case "sprint":
+                return Animation.SPRINT;
+            case "jump":
+                return Animation.JUMP;
+            case "collect":
+                return Animation.COLLECT;
+            case "hit":
+                return Animation.HIT;
+        }
+        return Animation.IDLE;
     }
 }

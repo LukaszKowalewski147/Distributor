@@ -10,9 +10,10 @@ public class PlayerStats : MonoBehaviour
 
     private void Start()
     {
-        hp = 100;
-        lemonsOwned = 0;
-        cactusNeedlesOwned = 0;
+        hp = PlayerData.hp;
+        Debug.Log("PlayerStats.cs - Start(): PlayerData.hp = " + PlayerData.hp.ToString() + " | hp = " + hp.ToString());
+        lemonsOwned = PlayerData.lemonsCount;
+        cactusNeedlesOwned = PlayerData.cactusNeedlesCount;
         UpdateHp();
         UpdateLemons();
         UpdateCactusNeedles();

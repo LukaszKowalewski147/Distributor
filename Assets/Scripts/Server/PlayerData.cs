@@ -11,5 +11,6 @@ public class PlayerData : MonoBehaviour
     public static int hp;
     public static int lemonsCount;
     public static int cactusNeedlesCount;
-    public static OtherPlayersManager otherPlayersManager;
+    public static OtherPlayers otherPlayers;
+    public static bool multiplayer;
 }

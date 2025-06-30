@@ -5,44 +5,54 @@ public class OtherPlayerManager : MonoBehaviour
     private Animator animator;
     private string ID;
 
-    private void Start()
+    private void Awake()
     {
+        Debug.Log("OtherPlayerManager.cs - Awake()");
         animator = GetComponent<Animator>();
-        ID = RemovePlayerPrefix(gameObject.name);
     }
 
-    public void MovePlayer(Vector3 position)
+    public void SetID(string id)
     {
+        ID = id;
+        //Debug.Log("OtherPlayerManager.cs - SetID(): ID set to: " + ID);
+    }
+
+    public string GetID()
+    {
+        return ID;
+    }
+
+    public void MovePlayer(Vector3 position, float rotationY)
+    {
+        //Debug.Log("OtherPlayerManager.cs [" + ID + "] - MovePlayer()");
         transform.position = position;
+        transform.eulerAngles = new Vector3(0.0f, rotationY, 0.0f);
     }
 
-    public void TriggerAnimation(string animation)
+    public void TriggerAnimation(AnimationManager.Animation animation)
     {
+        //Debug.Log("OtherPlayerManager.cs [" + ID + "] - TriggerAnimation(" + animation.ToString() +")");
         switch (animation)
         {
-            case "idle":
+            case AnimationManager.Animation.IDLE:
                 animator.SetTrigger("Idle");
                 break;
-            case "run":
+            case AnimationManager.Animation.RUN:
                 animator.SetTrigger("Run");
                 break;
-            case "sprint":
+            case AnimationManager.Animation.SPRINT:
                 animator.SetTrigger("Sprint");
                 break;
-            case "jump":
+            case AnimationManager.Animation.JUMP:
                 animator.SetTrigger("Jump");
                 break;
-            case "collect":
+            case AnimationManager.Animation.COLLECT:
                 animator.SetTrigger("Collect");
                 break;
-            case "hit":
+            case AnimationManager.Animation.HIT:
                 animator.SetTrigger("Hit");
                 break;
         }
-    }
-    
-    private string RemovePlayerPrefix(string input)
-    {
-        return input.Replace("player_", "");
+        //Debug.Log(ID + " triggered " + animation.ToString() + " animation");
     }
 }

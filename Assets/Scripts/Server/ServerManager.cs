@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using UnityEngine;
 
@@ -12,22 +11,25 @@ public class ServerManager : MonoBehaviour
 {
     public static ServerManager Instance { get; private set; }
 
+    private readonly Queue<Action> mainThreadActions = new Queue<Action>();
+    private readonly object lockObject = new object();
+
     private IConnection connection;
     private IModel channel;
-    private string playerId;
-    private string playerName;
-    private string zone;
     private Thread consumerThread;
     private volatile bool isRunning;
 
+    private string myPlayerID;
+    private string myPlayerName;
+    
     // RabbitMQ configuration (matching server)
     private const string RABBITMQ_HOST = "localhost";
     private const string EXCHANGE_C2S = "game.client_to_server";
     private const string EXCHANGE_M2C = "game.movement_to_client";
     private const string EXCHANGE_A2C = "game.animations_to_client";
     private const string EXCHANGE_I2C = "game.interactions_to_client";
-    private const string EXCHANGE_PT = "game.player_transfer";
-    private const float TICK_INTERVAL = 0.1f; // 100ms, matching server
+    //private const string EXCHANGE_PT = "game.player_transfer";
+    private const float TICK_INTERVAL = 0.25f; // 250ms, matching server
 
     // Queues and routing keys
     private string movementQueue;
@@ -37,6 +39,12 @@ public class ServerManager : MonoBehaviour
 
     void Awake()
     {
+        if (!PlayerData.multiplayer)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         #region Singleton handling
         if (Instance != null && Instance != this)
         {
@@ -47,27 +55,38 @@ public class ServerManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         #endregion
-
-        // Initialize player ID, name and zone
-        playerId = PlayerData.playerID;
-        playerName = PlayerData.playerName;
-        zone = PlayerData.zone;
-
-        // Initialize queue names
-        movementQueue = $"movement.{playerId}";
-        animationsQueue = $"animations.{playerId}";
-        interactionsQueue = $"interactions.{playerId}";
-        transferQueue = $"transfer.*.{zone}";
     }
 
     void Start()
     {
+        Debug.Log("ServerManager.cs - Start()");
+        // Initialize otherPlayers, myPlayerID, myPlayerName and myPlayerZone
+        myPlayerID = PlayerData.playerID;
+        myPlayerName = PlayerData.playerName;
+
+        // Initialize queue names
+        movementQueue = $"movement.{myPlayerID}";
+        animationsQueue = $"animations.{myPlayerID}";
+        interactionsQueue = $"interactions.{myPlayerID}";
+        transferQueue = $"transfer.{PlayerData.zone}";
+
         ConnectToRabbitMQ();
         SendJoinMessage();
         StartSendingUpdates();
         StartConsuming();
     }
 
+    void Update()
+    {
+        lock (lockObject)
+        {
+            while (mainThreadActions.Count > 0)
+            {
+                Action action = mainThreadActions.Dequeue();
+                action?.Invoke();
+            }
+        }
+    }
     void ConnectToRabbitMQ()
     {
         try
@@ -81,7 +100,7 @@ public class ServerManager : MonoBehaviour
             channel.ExchangeDeclare(EXCHANGE_M2C, ExchangeType.Topic);
             channel.ExchangeDeclare(EXCHANGE_A2C, ExchangeType.Topic);
             channel.ExchangeDeclare(EXCHANGE_I2C, ExchangeType.Topic);
-            channel.ExchangeDeclare(EXCHANGE_PT, ExchangeType.Topic);
+            //channel.ExchangeDeclare(EXCHANGE_PT, ExchangeType.Topic);
 
             // Declare and bind client-specific queues
             channel.QueueDeclare(movementQueue, false, false, true, null);
@@ -94,63 +113,69 @@ public class ServerManager : MonoBehaviour
             channel.QueueBind(interactionsQueue, EXCHANGE_I2C, interactionsQueue);
 
             channel.QueueDeclare(transferQueue, false, false, true, null);
-            channel.QueueBind(transferQueue, EXCHANGE_PT, transferQueue);
+            channel.QueueBind(transferQueue, EXCHANGE_C2S, transferQueue);
 
-            Debug.Log("Connected to RabbitMQ and queues set up.");
+            Debug.Log("ServerManager.cs - ConnectToRabbitMQ(): Connected to RabbitMQ and queues set up.");
         }
         catch (Exception e)
         {
-            Debug.LogError($"Failed to connect to RabbitMQ: {e.Message}");
+            Debug.LogError($"ServerManager.cs - ConnectToRabbitMQ(): Failed to connect to RabbitMQ: {e.Message}");
         }
     }
 
     void SendJoinMessage()
     {
-        var message = new { id = playerId };
-        SendMessage(EXCHANGE_C2S, $"join.{zone}", message);
-        Debug.Log("SERVER - Sending a JOIN MESSAGE:\n" + message.ToString());
+        Debug.Log("ServerManager.cs - SendJoinMessage()");
+        var message = new { id = myPlayerID };
+        SendMessage(EXCHANGE_C2S, $"join.{PlayerData.zone}", message);
+        //Debug.Log("ServerManager.cs - SendLeaveMessage(): msg: " + message.ToString());
     }
 
     void SendLeaveMessage()
     {
-        Debug.Log("SendLeaveMessage");
-        var message = new { id = playerId };
-        SendMessage(EXCHANGE_C2S, $"leave.{zone}", message);
-        Debug.Log("SERVER - Sending a LEAVE MESSAGE:\n" + message.ToString());
+        Debug.Log("ServerManager.cs - SendLeaveMessage()");
+        var message = new { id = myPlayerID };
+        SendMessage(EXCHANGE_C2S, $"leave.{PlayerData.zone}", message);
+        //Debug.Log("ServerManager.cs - SendLeaveMessage(): msg: " + message.ToString());
     }
 
     void SendMessage(string exchange, string routingKey, object message)
     {
+        //Debug.Log("ServerManager.cs - SendMessage(): rutngKey: " + routingKey + " | exchng: " + exchange + "\nmessage: " + message.ToString());
         try
         {
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
             channel.BasicPublish(exchange, routingKey, null, body);
+            //Debug.Log("send message: after basic publish");
         }
         catch (Exception e)
         {
-            Debug.LogError($"Error sending message to {routingKey}: {e.Message}");
+            Debug.LogError($"ServerManager.cs - SendMessage(): Error sending message to {routingKey}: {e.Message}");
         }
     }
 
     void StartSendingUpdates()
     {
+        Debug.Log("ServerManager.cs - StartSendingUpdates()");
         InvokeRepeating(nameof(SendPlayerUpdate), 0f, TICK_INTERVAL);
     }
 
     void SendPlayerUpdate()
     {
+        //Debug.Log("send player update");
         Vector3 position = PlayerData.position;
 
         var message = new
         {
-            id = playerId,
+            id = myPlayerID,
             posX = position.x,
             posY = position.y,
             posZ = position.z,
             rotY = PlayerData.rotationY,
             timestamp = Time.time
         };
-        SendMessage(EXCHANGE_C2S, $"movement.{zone}", message);
+        //Debug.Log("player update: message: " + message.ToString());
+        SendMessage(EXCHANGE_C2S, $"movement.{PlayerData.zone}", message);
         //Debug.Log("SERVER - Sending a MOVEMENT UPDATE MESSAGE:\n" + message.ToString());
     }
 
@@ -158,11 +183,11 @@ public class ServerManager : MonoBehaviour
     {
         var message = new
         {
-            playerId = playerId,
+            playerId = myPlayerID,
             animation,
             timestamp = Time.time
         };
-        SendMessage(EXCHANGE_C2S, $"animations.{zone}", message);
+        SendMessage(EXCHANGE_C2S, $"animations.{PlayerData.zone}", message);
         //Debug.Log("SERVER - Sending a ANIMATION TRIGGER MESSAGE:\n" + message.ToString());
     }
     
@@ -170,42 +195,42 @@ public class ServerManager : MonoBehaviour
     {
         var message = new
         {
-            playerId = playerId,
+            playerId = myPlayerID,
             interaction,
             timestamp = Time.time
         };
-        SendMessage(EXCHANGE_C2S, $"interactions.{zone}", message);
+        SendMessage(EXCHANGE_C2S, $"interactions.{PlayerData.zone}", message);
         //Debug.Log("SERVER - Sending a INTERACTION TRIGGER MESSAGE:\n" + message.ToString());
     }
     
     public void SendPlayerTransfer(string targetZone)
     {
+        Debug.Log("ServerManager.cs - SendPlayerTransfer()");
         var message = new
         {
-            playerId = playerId,
-            from = zone,
+            playerId = myPlayerID,
+            from = PlayerData.zone,
             to = targetZone,
             timestamp = Time.time
         };
-        SendMessage(EXCHANGE_C2S, $"transfer.{zone}", message);
-        Debug.Log("SERVER - Sending a PLAYER TRANSFER MESSAGE:\n" + message.ToString());
+        SendMessage(EXCHANGE_C2S, $"transfer.{PlayerData.zone}", message);
+        //Debug.Log("ServerManager.cs - SendPlayerTransfer(): msg: " + message.ToString());
 
         PlayerData.zone = targetZone; // Update local zone
-        zone = targetZone; 
 
-        UpdateQueueBindings();
+        //UpdateQueueBindings();
     }
     
     void UpdateQueueBindings()
     {
         // Unbind and delete old transfer queue
-        channel.QueueUnbind(transferQueue, EXCHANGE_PT, transferQueue, null);
-        channel.QueueDelete(transferQueue);
+        //channel.QueueUnbind(transferQueue, EXCHANGE_PT, transferQueue, null);
+        //channel.QueueDelete(transferQueue);
 
         // Update transfer queue for new zone
-        transferQueue = $"transfer.*.{zone}";
-        channel.QueueDeclare(transferQueue, false, false, true, null);
-        channel.QueueBind(transferQueue, EXCHANGE_PT, transferQueue);
+        //transferQueue = $"transfer.*.{PlayerData.zone}";
+        //channel.QueueDeclare(transferQueue, false, false, true, null);
+        //channel.QueueBind(transferQueue, EXCHANGE_PT, transferQueue);
     }
     
     void StartConsuming()
@@ -241,14 +266,14 @@ public class ServerManager : MonoBehaviour
                     {
                         ProcessInteractionMessage(message);
                     }
-                    else if (routingKey.StartsWith("transfer."))
-                    {
-                        ProcessTransferMessage(message);
-                    }
+                    //else if (routingKey.StartsWith("transfer."))
+                    //{
+                    //    ProcessTransferMessage(message);
+                    //}
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError($"Error processing message: {e.Message}");
+                    Debug.LogError($"ServerManager.cs - ConsumeMessages(): Error processing message: {e.Message}");
                 }
             };
 
@@ -264,144 +289,122 @@ public class ServerManager : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError($"Consumer thread error: {e.Message}");
+            Debug.LogError($"ServerManager.cs - ConsumeMessages(): Consumer thread error: {e.Message}");
         }
     }
 
     void ProcessMovementMessage(string message)
     {
         //Debug.Log("SERVER - movement response message: " + message);
-        var data = JsonSerializer.Deserialize<MovementMessage>(message);
+        var data = JsonSerializer.Deserialize<MessageClasses.MovementMessage>(message);
+
         if (data?.Updates != null)
         {
-            foreach (var update in data.Updates)
+            lock (lockObject)
             {
-                if (update.Id != playerId) // Update other players
-                {
-                    
-                }
-                else
-                {
-                    // My position for debugging
-                    //Debug.Log($"Me: X={update.Position.X}, Y={update.Position.Y}, Z={update.Position.Z}, rotY={update.RotationY}");
-                }
+                mainThreadActions.Enqueue(() => PlayerData.otherPlayers.ManageServerMovementUpdates(data.Updates));
             }
         }
     }
 
     void ProcessAnimationMessage(string message)
     {
-        var data = JsonSerializer.Deserialize<AnimationMessage>(message);
+        var data = JsonSerializer.Deserialize<MessageClasses.AnimationMessage>(message);
+
+        if (data != null)
+        {
+            if (data.PlayerId != myPlayerID)
+            {
+                lock (lockObject)
+                {
+                    mainThreadActions.Enqueue(() => PlayerData.otherPlayers.ManageServerAnimationTrigger(data));
+                }
+            }
+        }
         //Debug.Log($"Animation from {data.PlayerId}: animation: {data.Animation}");
         // Handle animation (e.g., play animation on other player)
     }
 
     void ProcessInteractionMessage(string message)
     {
-        var data = JsonSerializer.Deserialize<InteractionMessage>(message);
-        //Debug.Log($"Interaction from {data.PlayerId}: {data.Interaction}");
-        // Handle interaction (e.g., update UI or trigger events)
-    }
-    
-    void ProcessTransferMessage(string message)
-    {
-        var data = JsonSerializer.Deserialize<TransferMessage>(message);
-        if (data.PlayerId == playerId)
+        var data = JsonSerializer.Deserialize<MessageClasses.InteractionMessage>(message);
+        string playerID = data.PlayerId;
+
+        Debug.LogWarning("ServerManager.cs - ProcessInteractionMessage(): " + playerID + ": " + data.Interaction);
+
+        if (playerID != myPlayerID)
         {
-            zone = data.To;
-            Debug.Log($"Player transferred to {zone}");
+            Debug.LogWarning("ServerManager.cs - ProcessInteractionMessage(): ID: " + playerID + " is not mine");
+            if (data.Interaction == "left")
+            {
+                Debug.LogWarning("ServerManager.cs - ProcessInteractionMessage(): " + playerID + " left the server");
+                lock (lockObject)
+                {
+                    mainThreadActions.Enqueue(() => PlayerData.otherPlayers.RemovePlayer(playerID));
+                }
+            }
         }
     }
-
-    #region JSON messages
-    [Serializable]
-    private class MovementMessage
+    /*
+    void ProcessTransferMessage(string message)
     {
-        [JsonPropertyName("updates")]
-        public List<PlayerUpdate> Updates { get; set; }
+        Debug.LogWarning("ServerManager.cs - ProcessTransferMessage()");
+        var data = JsonSerializer.Deserialize<MessageClasses.TransferMessage>(message);
+        string playerID = data.PlayerId;
+
+        if (playerID != myPlayerID)
+        {
+            lock (lockObject)
+            {
+                mainThreadActions.Enqueue(() => PlayerData.otherPlayers.RemovePlayer(playerID));
+            }
+        }
+
+        Debug.Log("ServerManager.cs - ProcessTransferMessage(): Player " + playerID + " transferred to: " + data.To);
     }
-
-    [Serializable]
-    private class PlayerUpdate
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; }
-
-        [JsonPropertyName("position")]
-        public Position Position { get; set; }
-
-        [JsonPropertyName("rotationY")]
-        public float RotationY { get; set; }
-
-        [JsonPropertyName("timestamp")]
-        public float Timestamp { get; set; }
-    }
-
-    [Serializable]
-    private class Position
-    {
-        [JsonPropertyName("x")]
-        public float X { get; set; }
-
-        [JsonPropertyName("y")]
-        public float Y { get; set; }
-
-        [JsonPropertyName("z")]
-        public float Z { get; set; }
-
-        // Konwersja na Vector3
-        public static implicit operator Vector3(Position pos) => new Vector3(pos.X, pos.Y, pos.Z);
-    }
-
-    [Serializable]
-    private class AnimationMessage
-    {
-        [JsonPropertyName("playerId")]
-        public string PlayerId { get; set; }
-
-        [JsonPropertyName("animation")]
-        public string Animation { get; set; }
-
-        [JsonPropertyName("timestamp")]
-        public float Timestamp { get; set; }
-    }
-
-    [Serializable]
-    private class InteractionMessage
-    {
-        [JsonPropertyName("playerId")]
-        public string PlayerId { get; set; }
-
-        [JsonPropertyName("interaction")]
-        public string Interaction { get; set; }
-
-        [JsonPropertyName("timestamp")]
-        public float Timestamp { get; set; }
-    }
-
-    [Serializable]
-    private class TransferMessage
-    {
-        [JsonPropertyName("playerId")]
-        public string PlayerId { get; set; }
-
-        [JsonPropertyName("from")]
-        public string From { get; set; }
-
-        [JsonPropertyName("to")]
-        public string To { get; set; }
-
-        [JsonPropertyName("timestamp")]
-        public float Timestamp { get; set; }
-    }
-    #endregion
-
+    */
     private void OnApplicationQuit()
     {
-        Debug.Log("OnAppQuit");
-        SendLeaveMessage();
-        isRunning = false;
-        channel?.Close();
-        connection?.Close();
+        Debug.LogWarning("ServerManager.cs - OnApplicationQuit(): Closing RabbitMQ connection...");
+        try
+        {
+            SendLeaveMessage();
+            isRunning = false; 
+
+            if (consumerThread != null && consumerThread.IsAlive)
+            {
+                consumerThread.Join(5000);
+            }
+
+            if (channel != null && channel.IsOpen)
+            {
+                try
+                {
+                    channel.Close();
+                    Debug.Log("ServerManager.cs - OnApplicationQuit(): Channel closed successfully.");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"ServerManager.cs - OnApplicationQuit(): Error closing channel: {e.Message}");
+                }
+            }
+
+            if (connection != null && connection.IsOpen)
+            {
+                try
+                {
+                    connection.Close();
+                    Debug.Log("ServerManager.cs - OnApplicationQuit(): Connection closed successfully.");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"ServerManager.cs - OnApplicationQuit(): Error closing connection: {e.Message}");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"ServerManager.cs - OnApplicationQuit(): Unexpected error: {e.Message}");
+        }
     }
 }
